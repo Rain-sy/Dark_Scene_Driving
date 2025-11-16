@@ -48,58 +48,50 @@ def compute_iou(pred, gt, num_classes=num_classes, ignore_index=ignore_index):
     return np.nanmean(ious), ious
 
 # ---------------- MAIN ----------------
-print(f"Loading model: {model_name}")
-model = SegFormerBaseline(model_name=model_name)
+if __name__ == "__main__":
+    print(f"Loading model: {model_name}")
+    model = SegFormerBaseline(model_name=model_name)
 
-all_mious = []
-all_class_ious = []
+    all_mious = []
+    all_class_ious = []
 
-for img_path in sorted(data_dir.glob("*.png")):
-    # 1️⃣ 模型预测
-    image, seg = model.predict(str(img_path))
-    seg_color = colorize(seg)
-    seg_color = cv2.resize(seg_color, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_LINEAR)
+    for img_path in sorted(data_dir.glob("*.png")):
+        image, seg = model.predict(str(img_path))
+        seg_color = colorize(seg)
+        seg_color = cv2.resize(seg_color, (image.shape[1], image.shape[0]), interpolation=cv2.INTER_LINEAR)
 
-    # 2️⃣ 可视化叠加
-    blended = cv2.addWeighted(image, 0.6, seg_color, 0.4, 0)
+        blended = cv2.addWeighted(image, 0.6, seg_color, 0.4, 0)
+        save_path = output_dir / img_path.name
+        cv2.imwrite(str(save_path), cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
+        fig, axes = plt.subplots(1, 3, figsize=(12, 6))
+        axes[0].imshow(image); axes[0].set_title("Original"); axes[0].axis("off")
+        axes[1].imshow(seg_color); axes[1].set_title("Segmentation"); axes[1].axis("off")
+        axes[2].imshow(blended); axes[2].set_title("Overlay"); axes[2].axis("off")
+        fig.tight_layout()
+        save_fig_path = output_dir / f"{img_path.stem}_subplot.png"
+        plt.savefig(save_fig_path, bbox_inches='tight', dpi=200)
+        plt.close(fig)
+        gt_path = gt_dir / img_path.name.replace("_rgb_anon", "_gt_labelTrainIds")
+        if gt_path.exists():
+            gt = cv2.imread(str(gt_path), cv2.IMREAD_UNCHANGED)
+            seg_resized = cv2.resize(seg, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
+            miou, class_ious = compute_iou(seg_resized, gt)
+            miou *= 100 
+            class_ious = np.array(class_ious) * 100
+            all_mious.append(miou)
+            all_class_ious.append(class_ious)
 
-    # 保存 overlay
-    save_path = output_dir / img_path.name
-    cv2.imwrite(str(save_path), cv2.cvtColor(blended, cv2.COLOR_RGB2BGR))
+            print(f"{img_path.stem} → mIoU: {miou:.2f}")
 
-    # Subplot 保存
-    fig, axes = plt.subplots(1, 3, figsize=(12, 6))
-    axes[0].imshow(image); axes[0].set_title("Original"); axes[0].axis("off")
-    axes[1].imshow(seg_color); axes[1].set_title("Segmentation"); axes[1].axis("off")
-    axes[2].imshow(blended); axes[2].set_title("Overlay"); axes[2].axis("off")
-    fig.tight_layout()
-    save_fig_path = output_dir / f"{img_path.stem}_subplot.png"
-    plt.savefig(save_fig_path, bbox_inches='tight', dpi=200)
-    plt.close(fig)
+        else:
+            print(f"{img_path.stem} → GT not found: {gt_path.name}")
 
-    # 3️⃣ 计算 IoU
-    gt_path = gt_dir / img_path.name.replace("_rgb_anon", "_gt_labelTrainIds")
-    if gt_path.exists():
-        gt = cv2.imread(str(gt_path), cv2.IMREAD_UNCHANGED)
-        seg_resized = cv2.resize(seg, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
-        miou, class_ious = compute_iou(seg_resized, gt)
-        miou *= 100  # 转换为 0-100
-        class_ious = np.array(class_ious) * 100
-        all_mious.append(miou)
-        all_class_ious.append(class_ious)
-
-        print(f"{img_path.stem} → mIoU: {miou:.2f}")
-        for cls_id, iou in enumerate(class_ious):
-            print(f"   Class {cls_id}: {iou:.2f}")
+    # ---------------- FINAL SUMMARY ----------------
+    if all_mious:
+        print("\n===== Final Results =====")
+        print(f"Mean mIoU across {len(all_mious)} images: {np.nanmean(all_mious):.2f}")
+        mean_class_ious = np.nanmean(np.array(all_class_ious), axis=0)
+        for cls_id, iou in enumerate(mean_class_ious):
+            print(f"Class {cls_id} average IoU: {iou:.2f}")
     else:
-        print(f"{img_path.stem} → GT not found: {gt_path.name}")
-
-# ---------------- FINAL SUMMARY ----------------
-if all_mious:
-    print("\n===== Final Results =====")
-    print(f"Mean mIoU across {len(all_mious)} images: {np.nanmean(all_mious):.2f}")
-    mean_class_ious = np.nanmean(np.array(all_class_ious), axis=0)
-    for cls_id, iou in enumerate(mean_class_ious):
-        print(f"Class {cls_id} average IoU: {iou:.2f}")
-else:
-    print("No ground truth masks found. Only visualizations saved.")
+        print("No ground truth masks found. Only visualizations saved.")

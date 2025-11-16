@@ -37,8 +37,8 @@ def evaluate_dir(data_dir, gt_dir):
         gt = cv2.imread(str(gt_path), cv2.IMREAD_UNCHANGED)
         image, seg = model.predict(str(img_path))
         seg_resized = cv2.resize(seg, (gt.shape[1], gt.shape[0]), interpolation=cv2.INTER_NEAREST)
-        miou, _ = compute_iou(seg_resized, gt)
-        mious.append(miou*100)
+        miou, _ = compute_iou(seg_resized, gt)*100
+        mious.append(miou)
         print(f"{img_path.stem} → mIoU: {miou:.3f}")
 
     mean_miou = np.nanmean(mious) if mious else 0
