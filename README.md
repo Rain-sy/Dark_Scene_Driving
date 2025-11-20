@@ -20,7 +20,7 @@ We explain each file below:
 5. `evaluate_enhancements.py` - this script is used to evaluate SegFormer (via mIoU) on the original and enhanced images.
 
 6. `unet_segmentation_model.ipynb` - this notebook contains the code for fine-tuning the pre-trained U-net model on the BDD10k training images, and evaluating on Dark Zurich and BDD10k validation images.
-
+```text
 Project/
 │
 ├── data/
